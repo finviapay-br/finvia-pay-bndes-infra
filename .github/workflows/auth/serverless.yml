@@ -1,0 +1,89 @@
+service: finvia-pay-bndes-auth
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  region: sa-east-1
+  stage: ${opt:stage, 'dev'}
+
+custom:
+  stage: ${self:provider.stage}
+
+  # suffix: "-hlg", "-dev", "" (for prod if you want)
+  envSuffix: ${self:custom.stage, 'dev'}
+  resourceSuffix: -${self:custom.envSuffix}
+
+  # You can later make prod empty if desired
+  resourceSuffix: ${self:custom.stage} == 'prod' ? '' : '-${self:custom.stage}'
+
+resources:
+  Resources:
+
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: FinviaPay-bndes${self:custom.resourceSuffix}
+
+        UsernameAttributes:
+          - email
+
+        AutoVerifiedAttributes:
+          - email
+
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireUppercase: true
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: FinviaPay-bndes${self:custom.resourceSuffix}
+        UserPoolId:
+          Ref: CognitoUserPool
+
+        GenerateSecret: false
+
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthFlows:
+          - code
+
+        AllowedOAuthScopes:
+          - email
+          - openid
+          - profile
+
+        CallbackURLs:
+          - http://localhost:3000/api/auth/callback
+          - https://finvia-pay-bndes-git-hlg-finvias-projects.vercel.app/api/auth/callback
+
+        LogoutURLs:
+          - http://localhost:3000
+          - https://finvia-pay-bndes-git-hlg-finvias-projects.vercel.app/
+
+        SupportedIdentityProviders:
+          - COGNITO
+
+    CognitoUserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: finviapay-bndes${self:custom.resourceSuffix}
+        UserPoolId:
+          Ref: CognitoUserPool
+
+  Outputs:
+    UserPoolId:
+      Value:
+        Ref: CognitoUserPool
+      Export:
+        Name: FinviaUserPoolId${self:custom.resourceSuffix}
+
+    UserPoolClientId:
+      Value:
+        Ref: CognitoUserPoolClient
+      Export:
+        Name: FinviaUserPoolClientId${self:custom.resourceSuffix}
