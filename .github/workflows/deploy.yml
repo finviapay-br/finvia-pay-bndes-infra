@@ -70,7 +70,7 @@ jobs:
           node-version: 18
 
       - name: Install Serverless
-        run: npm install -g serverless
+        run: npm install -g serverless@3.38.0
 
       - name: Deploy Auth Stack
         run: |

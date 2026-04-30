@@ -1,7 +1,5 @@
 service: finvia-pay-bndes-auth
 
-frameworkVersion: "3"
-
 provider:
   name: aws
   region: sa-east-1
