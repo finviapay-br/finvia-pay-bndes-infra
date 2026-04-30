@@ -8,14 +8,12 @@ provider:
   stage: ${opt:stage, 'dev'}
 
 custom:
-  stage: ${self:provider.stage}
+  suffixMap:
+    dev: "-dev"
+    hlg: "-hlg"
+    prod: ""
 
-  # suffix: "-hlg", "-dev", "" (for prod if you want)
-  envSuffix: ${self:custom.stage, 'dev'}
-  resourceSuffix: -${self:custom.envSuffix}
-
-  # You can later make prod empty if desired
-  resourceSuffix: ${self:custom.stage} == 'prod' ? '' : '-${self:custom.stage}'
+  resourceSuffix: ${self:custom.suffixMap.${sls:stage}}
 
 resources:
   Resources:
@@ -42,7 +40,7 @@ resources:
     CognitoUserPoolClient:
       Type: AWS::Cognito::UserPoolClient
       Properties:
-        ClientName: FinviaPay-bndes${self:custom.resourceSuffix}
+        ClientName: "FinviaPay-bndes${self:custom.resourceSuffix}"
         UserPoolId:
           Ref: CognitoUserPool
 
@@ -80,10 +78,10 @@ resources:
       Value:
         Ref: CognitoUserPool
       Export:
-        Name: FinviaUserPoolId${self:custom.resourceSuffix}
+        Name: "FinviaUserPoolId${self:custom.resourceSuffix}"
 
     UserPoolClientId:
       Value:
         Ref: CognitoUserPoolClient
       Export:
-        Name: FinviaUserPoolClientId${self:custom.resourceSuffix}
+        Name: "FinviaUserPoolClientId${self:custom.resourceSuffix}"
