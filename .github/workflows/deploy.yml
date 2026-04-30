@@ -1,0 +1,78 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+      - hlg
+      - dev
+    paths:
+      - 'infra/**'
+
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Stage to deploy (dev, hlg, prod)'
+        required: true
+        default: 'dev'
+      full_deploy:
+        description: 'Deploy all stacks'
+        required: false
+        default: 'false'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.filter.outputs.auth }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            auth:
+              - 'infra/auth/**'
+
+  deploy-auth:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.auth == 'true' || github.event.inputs.full_deploy == 'true'
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set stage from branch
+        id: stage
+        run: |
+          if [ "${{ github.event.inputs.stage }}" != "" ]; then
+            echo "stage=${{ github.event.inputs.stage }}" >> $GITHUB_OUTPUT
+          elif [ "${GITHUB_REF##*/}" = "main" ]; then
+            echo "stage=prod" >> $GITHUB_OUTPUT
+          else
+            echo "stage=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Serverless
+        run: npm install -g serverless
+
+      - name: Deploy Auth Stack
+        run: |
+          cd infra/auth
+          serverless deploy --stage ${{ steps.stage.outputs.stage }}
