@@ -49,9 +49,13 @@ resources:
           - code
 
         AllowedOAuthScopes:
-          - email
           - openid
+          - email
           - profile
+
+        ExplicitAuthFlows:
+          - ALLOW_USER_SRP_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
 
         CallbackURLs:
           - "http://localhost:3000/api/auth/callback"
