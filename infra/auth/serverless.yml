@@ -23,7 +23,7 @@ resources:
     CognitoUserPool:
       Type: AWS::Cognito::UserPool
       Properties:
-        UserPoolName: FinviaPay-bndes${self:custom.resourceSuffix}
+        UserPoolName: "FinviaPay-bndes${self:custom.resourceSuffix}"
 
         UsernameAttributes:
           - email
@@ -58,12 +58,12 @@ resources:
           - profile
 
         CallbackURLs:
-          - http://localhost:3000/api/auth/callback
-          - https://finvia-pay-bndes-git-hlg-finvias-projects.vercel.app/api/auth/callback
+          - "http://localhost:3000/api/auth/callback"
+          - "https://finvia-pay-bndes-git-hlg-finvias-projects.vercel.app/api/auth/callback"
 
         LogoutURLs:
-          - http://localhost:3000
-          - https://finvia-pay-bndes-git-hlg-finvias-projects.vercel.app/
+          - "http://localhost:3000"
+          - "https://finvia-pay-bndes-git-hlg-finvias-projects.vercel.app"
 
         SupportedIdentityProviders:
           - COGNITO
@@ -71,7 +71,7 @@ resources:
     CognitoUserPoolDomain:
       Type: AWS::Cognito::UserPoolDomain
       Properties:
-        Domain: finviapay-bndes${self:custom.resourceSuffix}
+        Domain: "finviapay-bndes${self:custom.resourceSuffix}"
         UserPoolId:
           Ref: CognitoUserPool
 
