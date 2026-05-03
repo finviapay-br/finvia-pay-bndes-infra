@@ -1,9 +1,20 @@
 service: finvia-pay-bndes-auth
 
+frameworkVersion: "^3"
+
 provider:
   name: aws
   region: sa-east-1
   stage: ${opt:stage, 'dev'}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+          Resource:
+            - Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/organization${self:custom.resourceSuffix}
 
 custom:
   suffixMap:
@@ -13,11 +24,22 @@ custom:
 
   resourceSuffix: ${self:custom.suffixMap.${sls:stage}}
 
+functions:
+  preTokenGeneration:
+    handler: functions/pre-token-generator/index.handler
+    timeout: 60
+    environment:
+      ORGANIZATION_TABLE: "organization${self:custom.resourceSuffix}"
+
 resources:
   Resources:
 
     CognitoUserPool:
       Type: AWS::Cognito::UserPool
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      DependsOn:
+      - PreTokenLambdaPermission
       Properties:
         UserPoolName: "FinviaPay-bndes${self:custom.resourceSuffix}"
 
@@ -26,6 +48,14 @@ resources:
 
         AutoVerifiedAttributes:
           - email
+
+        LambdaConfig:
+          PreTokenGenerationConfig:
+            LambdaArn:
+              Fn::GetAtt:
+                - PreTokenGenerationLambdaFunction
+                - Arn
+            LambdaVersion: V2
 
         Policies:
           PasswordPolicy:
@@ -74,6 +104,14 @@ resources:
         Domain: "finviapay-bndes${self:custom.resourceSuffix}"
         UserPoolId:
           Ref: CognitoUserPool
+
+    PreTokenLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName:
+          Ref: PreTokenGenerationLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: cognito-idp.amazonaws.com
 
   Outputs:
     UserPoolId:

@@ -90,6 +90,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -106,7 +111,7 @@ jobs:
           serverless deploy --stage ${{ needs.set-stage.outputs.stage }}
 
   deploy-auth:
-    needs: [set-stage, detect-changes, deploy-data]
+    needs: [set-stage, detect-changes]
     if: needs.detect-changes.outputs.auth == 'true' || github.event.inputs.full_deploy == 'true'
     runs-on: ubuntu-latest
 
@@ -117,16 +122,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: sa-east-1
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
+      - name: Install dependencies
+        run: npm install
+        working-directory: infra/auth
 
       - name: Install Serverless
         run: npm install -g serverless@3.38.0
