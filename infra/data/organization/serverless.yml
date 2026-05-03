@@ -89,3 +89,4 @@ resources:
     OrganizationTableName:
       Value: ${self:custom.tableName}
     
+    
