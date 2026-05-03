@@ -5,6 +5,8 @@ frameworkVersion: "^3"
 provider:
   name: aws
   region: sa-east-1
+  runtime: nodejs24.x
+  architecture: arm64
   stage: ${opt:stage, 'dev'}
 
   iam:
