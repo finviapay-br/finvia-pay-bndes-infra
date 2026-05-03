@@ -57,7 +57,7 @@ resources:
               Fn::GetAtt:
                 - PreTokenGenerationLambdaFunction
                 - Arn
-            LambdaVersion: V2
+            LambdaVersion: V2_0
 
         Policies:
           PasswordPolicy:
