@@ -21,33 +21,13 @@ on:
         default: 'false'
 
 jobs:
-  detect-changes:
+
+  set-stage:
     runs-on: ubuntu-latest
     outputs:
-      auth: ${{ steps.filter.outputs.auth }}
+      stage: ${{ steps.stage.outputs.stage }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            auth:
-              - 'infra/auth/**'
-
-  deploy-auth:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.auth == 'true' || github.event.inputs.full_deploy == 'true'
-    runs-on: ubuntu-latest
-
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set stage from branch
+      - name: Resolve stage
         id: stage
         run: |
           if [ "${{ github.event.inputs.stage }}" != "" ]; then
@@ -57,6 +37,85 @@ jobs:
           else
             echo "stage=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
           fi
+
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.filter.outputs.auth }}
+      data_changed: ${{ steps.changed-files.outputs.any_changed }}
+      data_dirs: ${{ steps.changed-dirs.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect auth changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            auth:
+              - 'infra/auth/**'
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            infra/data/**
+
+      - name: Extract changed data directories
+        id: changed-dirs
+        run: |
+          DIRS=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep '^infra/data/' | cut -d/ -f1-3 | sort -u)
+          
+          if [ -z "$DIRS" ]; then
+            echo "matrix=[]" >> $GITHUB_OUTPUT
+          else
+            JSON=$(printf '%s\n' $DIRS | jq -R . | jq -s .)
+            echo "matrix=$JSON" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-data:
+    needs: [set-stage, detect-changes]
+    if: needs.detect-changes.outputs.data_changed == 'true' || github.event.inputs.full_deploy == 'true'
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        dir: ${{ fromJson(needs.detect-changes.outputs.data_dirs || '[]') }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Install Serverless
+        run: npm install -g serverless@3.38.0
+
+      - name: Deploy changed data stack
+        run: |
+          echo "Deploying ${{ matrix.dir }}"
+          cd ${{ matrix.dir }}
+          serverless deploy --stage ${{ needs.set-stage.outputs.stage }}
+
+  deploy-auth:
+    needs: [set-stage, detect-changes, deploy-data]
+    if: needs.detect-changes.outputs.auth == 'true' || github.event.inputs.full_deploy == 'true'
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -75,4 +134,4 @@ jobs:
       - name: Deploy Auth Stack
         run: |
           cd infra/auth
-          serverless deploy --stage ${{ steps.stage.outputs.stage }}
+          serverless deploy --stage ${{ needs.set-stage.outputs.stage }}
