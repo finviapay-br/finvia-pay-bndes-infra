@@ -28,6 +28,7 @@ custom:
 
 functions:
   preTokenGeneration:
+    name: auth-pre-token-generator-${self:provider.stage}
     handler: functions/pre-token-generator/index.handler
     timeout: 60
     environment:
