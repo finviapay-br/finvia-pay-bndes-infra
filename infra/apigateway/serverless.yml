@@ -1,0 +1,80 @@
+service: finviapay-bndes-api
+
+frameworkVersion: "^3"
+
+provider:
+  name: aws
+  region: sa-east-1
+  stage: ${opt:stage, 'dev'}
+
+custom:
+  suffixMap:
+    dev: "-dev"
+    hlg: "-hlg"
+    prod: ""
+
+  resourceSuffix: ${self:custom.suffixMap.${sls:stage}}
+
+resources:
+  Resources:
+
+    HttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: finviapay-bndes${self:custom.resourceSuffix}
+        ProtocolType: HTTP
+
+    HttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId:
+          Ref: HttpApi
+        StageName: $default
+        AutoDeploy: true
+
+    CognitoAuthorizer:
+      Type: AWS::ApiGatewayV2::Authorizer
+      Properties:
+        ApiId:
+          Ref: HttpApi
+
+        Name: CognitoAuthorizer
+
+        AuthorizerType: JWT
+
+        IdentitySource:
+          - "$request.header.Authorization"
+
+        JwtConfiguration:
+          Audience:
+            - Fn::ImportValue:
+                Fn::Sub: "FinviaUserPoolClientId${ResourceSuffix}"
+
+          Issuer:
+            Fn::Sub:
+              - "https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}"
+              - PoolId:
+                  Fn::ImportValue:
+                    Fn::Sub: "FinviaUserPoolId${ResourceSuffix}"
+
+  Outputs:
+
+    HttpApiId:
+      Value:
+        Ref: HttpApi
+      Export:
+        Name: "FinviaHttpApiId${self:custom.resourceSuffix}"
+
+    HttpApiEndpoint:
+      Value:
+        Fn::GetAtt:
+          - HttpApi
+          - ApiEndpoint
+      Export:
+        Name: "FinviaHttpApiEndpoint${self:custom.resourceSuffix}"
+
+    AuthorizerId:
+      Value:
+        Ref: CognitoAuthorizer
+      Export:
+        Name: "FinviaAuthorizerId${self:custom.resourceSuffix}"

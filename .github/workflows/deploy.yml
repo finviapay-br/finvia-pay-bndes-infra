@@ -24,8 +24,10 @@ jobs:
 
   set-stage:
     runs-on: ubuntu-latest
+
     outputs:
       stage: ${{ steps.stage.outputs.stage }}
+
     steps:
       - name: Resolve stage
         id: stage
@@ -40,43 +42,58 @@ jobs:
 
   detect-changes:
     runs-on: ubuntu-latest
+
     outputs:
       auth: ${{ steps.filter.outputs.auth }}
-      data_changed: ${{ steps.changed-files.outputs.any_changed }}
-      data_dirs: ${{ steps.changed-dirs.outputs.matrix }}
+      apigateway: ${{ steps.filter.outputs.apigateway }}
+      data: ${{ steps.filter.outputs.data }}
+      data_files: ${{ steps.filter.outputs.data_files }}
+      data_dirs: ${{ steps.data-dirs.outputs.matrix }}
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Detect auth changes
-        uses: dorny/paths-filter@v3
+      - name: Detect infrastructure changes
         id: filter
+        uses: dorny/paths-filter@v3
         with:
+          list-files: shell
+
           filters: |
             auth:
               - 'infra/auth/**'
 
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v44
-        with:
-          files: |
-            infra/data/**
+            apigateway:
+              - 'infra/apigateway/**'
+
+            data:
+              - 'infra/data/**'
 
       - name: Extract changed data directories
-        id: changed-dirs
+        id: data-dirs
         run: |
-          DIRS=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep '^infra/data/' | cut -d/ -f1-3 | sort -u)
+          DIRS=$(echo "${{ steps.filter.outputs.data_files }}" \
+            | tr ' ' '\n' \
+            | grep '^infra/data/' \
+            | cut -d/ -f1-3 \
+            | sort -u)
 
           if [ -z "$DIRS" ]; then
-            echo "matrix=[]" >> $GITHUB_OUTPUT
+            echo 'matrix=[]' >> $GITHUB_OUTPUT
           else
             JSON=$(printf '%s\n' $DIRS | jq -R . | jq -cs .)
             echo "matrix=$JSON" >> $GITHUB_OUTPUT
           fi
 
   deploy-data:
-    needs: [set-stage, detect-changes]
-    if: needs.detect-changes.outputs.data_changed == 'true' || github.event.inputs.full_deploy == 'true'
+    needs:
+      - set-stage
+      - detect-changes
+
+    if: |
+      needs.detect-changes.outputs.data == 'true' ||
+      github.event.inputs.full_deploy == 'true'
+
     runs-on: ubuntu-latest
 
     strategy:
@@ -111,8 +128,14 @@ jobs:
           serverless deploy --stage ${{ needs.set-stage.outputs.stage }}
 
   deploy-auth:
-    needs: [set-stage, detect-changes]
-    if: needs.detect-changes.outputs.auth == 'true' || github.event.inputs.full_deploy == 'true'
+    needs:
+      - set-stage
+      - detect-changes
+
+    if: |
+      needs.detect-changes.outputs.auth == 'true' ||
+      github.event.inputs.full_deploy == 'true'
+
     runs-on: ubuntu-latest
 
     permissions:
@@ -143,4 +166,45 @@ jobs:
       - name: Deploy Auth Stack
         run: |
           cd infra/auth
+          serverless deploy --stage ${{ needs.set-stage.outputs.stage }}
+
+  deploy-apigateway:
+    needs:
+      - set-stage
+      - detect-changes
+      - deploy-auth
+
+    if: |
+      always() &&
+      (
+        needs.detect-changes.outputs.apigateway == 'true' ||
+        github.event.inputs.full_deploy == 'true'
+      )
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Install Serverless
+        run: npm install -g serverless@3.38.0
+
+      - name: Deploy API Gateway Stack
+        run: |
+          cd infra/apigateway
           serverless deploy --stage ${{ needs.set-stage.outputs.stage }}
