@@ -29,7 +29,7 @@ resources:
       Properties:
         ApiId:
           Ref: HttpApi
-        StageName: $default
+        StageName: "$default"
         AutoDeploy: true
 
     CognitoAuthorizer:
@@ -47,15 +47,13 @@ resources:
 
         JwtConfiguration:
           Audience:
-            - Fn::ImportValue:
-                Fn::Sub: "FinviaUserPoolClientId${ResourceSuffix}"
+            - Fn::ImportValue: FinviaUserPoolClientId${self:custom.resourceSuffix}
 
           Issuer:
             Fn::Sub:
               - "https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}"
               - PoolId:
-                  Fn::ImportValue:
-                    Fn::Sub: "FinviaUserPoolId${ResourceSuffix}"
+                  Fn::ImportValue: FinviaUserPoolId${self:custom.resourceSuffix}
 
   Outputs:
 
@@ -63,7 +61,7 @@ resources:
       Value:
         Ref: HttpApi
       Export:
-        Name: "FinviaHttpApiId${self:custom.resourceSuffix}"
+        Name: FinviaHttpApiId${self:custom.resourceSuffix}
 
     HttpApiEndpoint:
       Value:
@@ -71,10 +69,10 @@ resources:
           - HttpApi
           - ApiEndpoint
       Export:
-        Name: "FinviaHttpApiEndpoint${self:custom.resourceSuffix}"
+        Name: FinviaHttpApiEndpoint${self:custom.resourceSuffix}
 
     AuthorizerId:
       Value:
         Ref: CognitoAuthorizer
       Export:
-        Name: "FinviaAuthorizerId${self:custom.resourceSuffix}"
+        Name: FinviaAuthorizerId${self:custom.resourceSuffix}
